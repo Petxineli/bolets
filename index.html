@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de bolets de Catalunya</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/leaflet.css">
+<style>
+:root{
+  /* Layout: panell lateral de lectura + mapa de quadrícula a pantalla completa */
+  --bg:#f3f4f1; --panel:#ffffff; --ink:#1d2420; --muted:#5d6862; --line:#d9ddd8;
+  --accent:#2f6b4f; --accent-ink:#ffffff; --sea:#e4e9ea;
+  --s0:#e9ece6; --s1:#f2dc9b; --s2:#d6c157; --s3:#8fb04f; --s4:#3f8a4f; --s5:#1c5a3a;
+  --warn:#a5641a; --bad:#a23b2a; --good:#2f6b4f;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141917; --panel:#1b211e; --ink:#e7ece8; --muted:#9aa69f; --line:#2c3531;
+    --accent:#6fbf8f; --accent-ink:#0f1512; --sea:#18201d;
+    --s0:#232b27; --s1:#5b5226; --s2:#8a7d2c; --s3:#5f8c3a; --s4:#3fa060; --s5:#7fd69a;
+    --warn:#e0a35a; --bad:#ef8a76; --good:#6fbf8f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141917; --panel:#1b211e; --ink:#e7ece8; --muted:#9aa69f; --line:#2c3531;
+  --accent:#6fbf8f; --accent-ink:#0f1512; --sea:#18201d;
+  --s0:#232b27; --s1:#5b5226; --s2:#8a7d2c; --s3:#5f8c3a; --s4:#3fa060; --s5:#7fd69a;
+  --warn:#e0a35a; --bad:#ef8a76; --good:#6fbf8f; color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);display:grid;grid-template-columns:minmax(320px,400px) 1fr;}
+#panel{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:20px 20px 32px;display:flex;flex-direction:column;gap:18px}
+#map{height:100%;background:var(--sea)}
+h1{font:700 26px/1.1 var(--f-display);margin:0;text-wrap:balance}
+h2{font:600 17px/1.25 var(--f-display);margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:5px 11px;font:500 13px var(--f-body);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chip:disabled{opacity:.45;cursor:default}
+.chip:focus-visible,.zone:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.legend{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.legend span{flex:1;font-size:11px;text-align:center;padding:3px 0;color:#1d2420}
+.legend span:nth-child(n+5){color:#fff}
+.zones{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.zone{display:grid;grid-template-columns:38px 1fr;gap:10px;align-items:center;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--ink);font:inherit}
+.zone:hover{border-color:var(--line)}
+.badge{font:700 15px var(--f-display);font-variant-numeric:tabular-nums;border-radius:6px;padding:3px 0;text-align:center;color:#fff}
+.zone small{display:block;color:var(--muted);font-size:12px}
+#detail{border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px}
+#detail[hidden]{display:none}
+.row{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:14px}
+.row b{font-weight:600}
+.sp{display:grid;grid-template-columns:120px 1fr 32px;gap:8px;align-items:center;font-size:13px}
+.bar{height:8px;background:var(--s0);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.sp .n{font-variant-numeric:tabular-nums;text-align:right;color:var(--muted)}
+.why{font-size:12.5px;color:var(--muted);margin:-4px 0 4px 0;grid-column:1/-1}
+.note{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+.warn{color:var(--warn)}
+.leaflet-container{background:var(--sea);font:inherit}
+.tag-close{float:right;background:none;border:0;color:var(--muted);font:600 13px var(--f-body);cursor:pointer}
+@media (max-width:760px){
+  body{grid-template-columns:1fr;grid-template-rows:55vh auto;height:auto}
+  html,body{height:auto}
+  #map{height:55vh;grid-row:1}
+  #panel{grid-row:2;border-right:0;overflow:visible}
+}
+.leaflet-control-layers{font:12px 'IBM Plex Sans',sans-serif}
+.maplinks{margin-top:10px;font-size:12px;line-height:1.7}.maplinks a{color:var(--accent);white-space:nowrap}
+</style>
+</head>
+<body>
+<aside id="panel">
+  <header>
+    <h1>Mapa de bolets de Catalunya</h1>
+    <p class="sub" id="date"></p>
+  </header>
+
+  <section aria-labelledby="h-filtre">
+    <h2 id="h-filtre">Què vols buscar?</h2>
+    <div class="chips" id="chips" style="margin-top:8px"></div>
+  </section>
+
+  <section>
+    <div class="legend" aria-label="Llegenda de l'índex">
+      <span style="background:var(--s1)">0-20</span><span style="background:var(--s2)">20-40</span><span style="background:var(--s3)">40-60</span><span style="background:var(--s4)">60-80</span><span style="background:var(--s5)">80-100</span>
+    </div>
+    <p class="sub">Vista general: índex de 0 a 100 per quadrícules de 5 km. <b>Apropa't al mapa</b> i apareixen els boscos un per un, tal com surten al mapa d'hàbitats de la Generalitat. Clica'n un per veure'n el perquè.</p>
+  </section>
+
+  <p class="sub" id="mode" style="margin:-8px 0 0;font-weight:600;color:var(--accent)"></p>
+  <section id="detail" hidden aria-live="polite"></section>
+
+  <section aria-labelledby="h-top">
+    <h2 id="h-top">Millors zones ara</h2>
+    <p class="sub">La quadrícula més ben puntuada de cada comarca.</p>
+    <ul class="zones" id="top" style="margin-top:8px"></ul>
+  </section>
+
+  <p class="note">Model orientatiu fet amb dades públiques: estacions del Meteocat (XEMA, dades obertes de la Generalitat), mapa d'hàbitats terrestres de la Generalitat (polígons simplificats a ~25 m) i altitud Copernicus (Open-Meteo). Les regles surten dels vídeos d'Enric Adventures contrastats amb fonts micològiques. No identifica bolets: davant del dubte, no es cull. Respecta la normativa de recol·lecció, la propietat privada i les batudes de caça.</p>
+</aside>
+<div id="map" role="application" aria-label="Mapa de Catalunya amb l'índex de bolets"></div>
+
+<script src="lib/leaflet.js"></script>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const SCALE = ['--s0','--s1','--s2','--s3','--s4','--s5'];
+function colorFor(v){ if(v<5) return null; return css(SCALE[Math.min(5, 1+Math.floor(v/20))]); }
+const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('ca-ES',{weekday:'long',day:'numeric',month:'long'});
+const SAFE = {
+  oureig:"Compte: l'ou de reig tancat es pot confondre amb l'Amanita phalloides, mortal.",
+  fredolic:"Compte amb el fredolic metzinós (Tricholoma pardinum) de fagedes i avetoses.",
+  murgola:"Compte amb la falsa múrgola (Gyromitra), tòxica."
+};
+let DATA, COM, map, layer, rects = [], active = 'total', baseOn = false, polyOp = 0.35;
+
+function inPoly(pt, poly){ // ray casting sobre [anell exterior]
+  let x=pt[0], y=pt[1], ins=false;
+  for(const ring of poly){ for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    if(((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) ins=!ins; } }
+  return ins;
+}
+function comarca(lon,lat){
+  for(const f of COM.features){ const g=f.geometry; const polys = g.type==='Polygon'?[g.coordinates]:g.coordinates;
+    for(const p of polys) if(inPoly([lon,lat],p)) return f.properties.n; }
+  return null;
+}
+const val = c => active==='total' ? c.total : (c.sc[active]||0);
+
+function levelTxt(v){ return v>=80?'molt bona':v>=60?'bona':v>=40?'regular':v>=20?'baixa':'molt baixa'; }
+function dies(a,b){ return Math.round((new Date(b)-new Date(a))/864e5); }
+
+function explain(c){
+  const B = DATA.boscos, h=c.c, m=c.m;
+  const forest = Object.keys(B).map(k=>[k,h[k]]).filter(x=>x[1]>=.04).sort((a,b)=>b[1]-a[1]);
+  const fTxt = forest.length ? forest.slice(0,3).map(([k,v])=>`${B[k]} (${Math.round(v*100)}%)`).join(', ') : 'poc bosc';
+  const ac=h.acid, ca=h.calc; let sol='sense dada clara de sòl';
+  if(ac+ca>.02){ const r=ac/(ac+ca); sol = r>.65?'sòl àcid (acidòfil)': r<.35?'sòl calcari (calcícola)':'sòls mixtos, àcids i calcaris'; }
+  const rows=[];
+  rows.push(['🌲', `<b>Bosc:</b> ${fTxt}. ${sol[0].toUpperCase()+sol.slice(1)}.${h.obac>.05?' Hi ha boscos d\'obaga.':''}${h.open>.05?' Part del bosc és obert o repoblat sense sotabosc.':''}`]);
+  rows.push(['⛰️', c.c.emax-c.c.emin>50 ? `<b>Altitud:</b> mitjana ${c.c.elev} m (de ${c.c.emin} a ${c.c.emax} m).` : `<b>Altitud:</b> uns ${c.c.elev} m al centre de la quadrícula; dins dels 5 km pot variar força.`]);
+  const ag = m.episodi_dia ? dies(m.episodi_dia, DATA.date) : null;
+  const pluja = m.p_pols>=25 ? '✅' : m.p_pols>=10 ? '⚠️' : '❌';
+  rows.push([pluja, `<b>Pluja:</b> ${m.episodi_mm} l/m² l'episodi del ${new Date(m.episodi_dia+'T12:00').toLocaleDateString('ca-ES',{day:'numeric',month:'long'})}${ag!==null?` (${ag} dies abans de la sortida)`:''} a ${m.est_pluja}, a ${m.dist_pluja} km. ${Math.round(m.p30)} l/m² els últims 30 dies.`]);
+  const tm=c.tmean; const tOk = (m.tnmin7<-2)?'❌':(tm<5||tm>17)?'⚠️':'✅';
+  rows.push([tOk, `<b>Temperatura estimada a ${c.c.elev} m:</b> mínimes de ${m.tn7.toFixed(1)} °C i màximes de ${m.tx7.toFixed(1)} °C de mitjana els últims 7 dies; la més freda, ${m.tnmin7.toFixed(1)} °C${m.tnmin7<0?' (hi ha hagut gelades)':''}. Corregida des de ${m.est_temp} (${m.alt_est_temp} m).`]);
+  const vd = Math.round(m.dies_vent7);
+  rows.push([vd>=3?'⚠️':'✅', `<b>Vent:</b> ${vd} ${vd===1?'dia':'dies'} amb ratxes de més de 54 km/h la darrera setmana${vd>=3?'; el bolet es pot haver assecat, sobretot a les carenes':''}.`]);
+  const sp = Object.entries(c.sc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const spHtml = sp.map(([g,v])=>{
+    const w=c.why[g]; const lim=[['h','el bosc o el sòl no li van del tot'],['s','no és la seva millor època'],['r','falta pluja recent'],['t','la temperatura no és la ideal'],['v','el vent']].sort((a,b)=>w[a[0]]-w[b[0]])[0];
+    const why = v>=60 ? 'Bones condicions.' : `Limita: ${lim[1]}.`;
+    return `<div class="sp"><span>${DATA.noms[g]}</span><span class="bar"><i style="width:${v}%"></i></span><span class="n">${v}</span><span class="why">${why}${SAFE[g]&&v>=20?` <span class="warn">${SAFE[g]}</span>`:''}</span></div>`;
+  }).join('');
+  const nom = comarca(c.lon,c.lat) || 'Zona';
+  return `<div><button class="tag-close" id="close" aria-label="Tanca el detall">Tanca ✕</button>
+    <h2>${nom} · ${c.lat.toFixed(2)}, ${c.lon.toFixed(2)}</h2>
+    <p class="sub">Índex ${c.total}: probabilitat ${levelTxt(c.total)}</p></div>
+    <div style="display:flex;flex-direction:column;gap:8px">${spHtml}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${rows.map(r=>`<div class="row"><span aria-hidden="true">${r[0]}</span><span>${r[1]}</span></div>`).join('')}</div>
+    <div class="maplinks"><b>Com arribar-hi:</b> <a href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}&travelmode=driving" target="_blank" rel="noopener">Ruta amb Google Maps</a> · <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${c.lat},${c.lon}&zoom=15&basemap=terrain" target="_blank" rel="noopener">Mapa de terreny</a> · <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${c.lat},${c.lon}&zoom=16&basemap=satellite" target="_blank" rel="noopener">Satèl·lit</a> · <a href="https://www.openstreetmap.org/?mlat=${c.lat}&mlon=${c.lon}#map=15/${c.lat}/${c.lon}" target="_blank" rel="noopener">OpenStreetMap (camins)</a> · <a href="https://opentopomap.org/#map=15/${c.lat}/${c.lon}" target="_blank" rel="noopener">OpenTopoMap (corbes de nivell)</a></div>`;
+}
+
+let sel=null;
+function showDetail(c){
+  if(sel) map.removeLayer(sel);
+  const g=DATA.grid; sel=L.rectangle([[g.lat0+c.j*g.dlat, g.lon0+c.i*g.dlon],[g.lat0+(c.j+1)*g.dlat, g.lon0+(c.i+1)*g.dlon]],{color:css('--ink'),weight:2.5,fill:false,interactive:false}).addTo(map);
+  const d=document.getElementById('detail'); d.innerHTML=explain(c); d.hidden=false;
+  document.getElementById('close').onclick=()=>{d.hidden=true;};
+  d.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth', block:'nearest'});
+}
+
+function draw(){
+  const z = map && map.getZoom()>=ZPOLY;
+  rects.forEach(({r,c})=>{ const v=val(c), col=colorFor(v);
+    r.setStyle({fillColor: col||'transparent', fillOpacity: col?(z?0.12:0.82):0, stroke:false}); });
+  polys.forEach(({p,lay})=>lay.setStyle(stylePoly(p)));
+  const seen=new Set(), top=[];
+  for(const c of [...DATA.cells].sort((a,b)=>val(b)-val(a))){ const n=comarca(c.lon,c.lat)||'?'; if(seen.has(n)) continue; seen.add(n); top.push(c); if(top.length>=12) break; }
+  document.getElementById('top').innerHTML = top.map((c,k)=>{ const v=val(c);
+    const sp=Object.entries(c.sc).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([g])=>DATA.noms[g]).join(', ');
+    return `<li><button class="zone" data-k="${DATA.cells.indexOf(c)}"><span class="badge" style="background:${colorFor(v)||css('--s0')};color:${v>=60?'#fff':'#1d2420'}">${v}</span><span>${comarca(c.lon,c.lat)||'Zona'} <small>${c.c.elev} m · ${sp}</small></span></button></li>`;}).join('');
+  document.querySelectorAll('.zone').forEach(b=>b.onclick=()=>{ const c=DATA.cells[+b.dataset.k]; map.setView([c.lat,c.lon],11); showDetail(c); });
+}
+
+function chips(){
+  const counts={}; DATA.cells.forEach(c=>Object.entries(c.sc).forEach(([g,v])=>{counts[g]=Math.max(counts[g]||0,v)}));
+  const order=['total','rovello','pinetell','camagroc','llenega','fredolic','trompeta','carlet','cep','oureig','murgola'];
+  document.getElementById('chips').innerHTML = order.map(g=>{
+    const label = g==='total'?'Tots els bolets':DATA.noms[g]; const off = g!=='total' && !(counts[g]>0);
+    return `<button class="chip" data-g="${g}" aria-pressed="${g===active}" ${off?'disabled title="Fora de temporada"':''}>${label}${off?' · fora de temporada':''}</button>`;}).join('');
+  document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{ active=b.dataset.g; document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed', x===b)); draw(); });
+}
+
+let HAB, MET, fireLayer, polyLayer, polys=[], loaded={}, selPoly=null;
+const ZPOLY=10;
+function decodeRing(f){ const out=[]; let x=0,y=0; for(let k=0;k<f.length;k+=2){ x+=f[k]; y+=f[k+1]; out.push([y/1e4,x/1e4]); } return out; }
+const pval = p => { if(active==='total') return Math.max(...p[4]); const k=HAB.order.indexOf(active); return k<0?0:p[4][k]; };
+function stylePoly(p){ const v=pval(p), col=colorFor(v); return {stroke:true, color: col||css('--muted'), weight:.6, opacity:.9, fillColor: col||css('--s0'), fillOpacity: col?0.85:0.25}; }
+async function loadTiles(){
+  if(map.getZoom()<ZPOLY) return;
+  const b=map.getBounds(), T=HAB.tile;
+  const x0=Math.floor((b.getWest()-HAB.lon0)/T), x1=Math.floor((b.getEast()-HAB.lon0)/T), y0=Math.floor((b.getSouth()-HAB.lat0)/T), y1=Math.floor((b.getNorth()-HAB.lat0)/T);
+  for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){ const k=x+'_'+y; if(loaded[k]||!HAB.tiles.includes(k)) continue; loaded[k]=1;
+    fetch('t/'+k+'.json').then(r=>r.json()).then(items=>{ for(const p of items){ const lls=p[5].map(poly=>poly.map(decodeRing));
+      const lay=L.polygon(lls, stylePoly(p)); lay.on('click',e=>{ L.DomEvent.stop(e); showPoly(p,lay); }); lay.addTo(polyLayer); polys.push({p,lay}); } }); }
+}
+function zoomMode(){ const z=map.getZoom()>=ZPOLY; if(z){ map.addLayer(polyLayer); loadTiles(); } else map.removeLayer(polyLayer);
+  rects.forEach(({r,c})=>{ const v=val(c), col=colorFor(v); r.setStyle({fillColor: col||'transparent', fillOpacity: col?(z?0.12:0.82):0}); });
+  document.getElementById('mode').textContent = z ? 'Estàs veient els boscos un per un.' : 'Apropa\'t per veure els boscos un per un.'; }
+function showPoly(p,lay){
+  if(selPoly) selPoly.setStyle({weight:.6, color: colorFor(pval(selPoly._p))||css('--muted')});
+  lay._p=p; lay.setStyle({weight:3,color:css('--ink')}); lay.bringToFront(); selPoly=lay;
+  const met=MET[p[1]], m=met.m, e=p[2], d=(e-met.e)/150;
+  const tn=m.tn7-d, tx=m.tx7-d, tnmin=m.tnmin7-d, tm=(tn+tx)/2;
+  const txt=HAB.codes[p[0]];
+  const sc=HAB.order.map((g,k)=>[g,p[4][k]]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const lc=txt.toLowerCase(); const flags=[];
+  if(p[6]){ const f=HAB.foc[p[6]-1]; flags.push('🔥 Zona cremada (aprox.): '+f.nom+', '+f.data.slice(0,4)+', ~'+f.ha.toLocaleString('ca')+' ha. A la primavera, bona per a múrgola (1-2 anys després del foc); ara no és temporada.'); }
+  if(/sense sotabosc/.test(lc)) flags.push('✅ Bosc obert, sense sotabosc: el que busca el rovelló i fàcil de caminar.');
+  if(/obac|ombrívol/.test(lc)) flags.push('✅ Obaga: més humitat.');
+  if(/solell/.test(lc)) flags.push('☀️ Solell: més sec; amb fred, bo per al rovelló bo.');
+  if(/acidòfil|silicícol|silici/.test(lc)) flags.push('✅ Sòl àcid: hi pot haver ceps i pinetells.');
+  if(/calcícol|basòfil|calcari/.test(lc)) flags.push('ℹ️ Sòl calcari: millor per a rovelló i llenega; poc probable trobar-hi ceps.');
+  if(/xeròfil|poc plujosa/.test(lc)) flags.push('⚠️ Bosc sec (xeròfil): necessita més pluja.');
+  const ag=m.episodi_dia?dies(m.episodi_dia,DATA.date):null; const vd=Math.round(m.dies_vent7);
+  const rows=[
+    [m.p_pols>=25?'✅':m.p_pols>=10?'⚠️':'❌', `<b>Pluja:</b> ${m.episodi_mm} l/m² l'episodi del ${new Date(m.episodi_dia+'T12:00').toLocaleDateString('ca-ES',{day:'numeric',month:'long'})}${ag!==null?` (${ag} dies abans de la sortida)`:''} a ${m.est_pluja}, a ${m.dist_pluja} km. ${Math.round(m.p30)} l/m² els últims 30 dies.`],
+    [(tnmin<-2)?'❌':(tm<5||tm>17)?'⚠️':'✅', `<b>Temperatura estimada a uns ${e} m:</b> mínimes de ${tn.toFixed(1)} °C i màximes de ${tx.toFixed(1)} °C de mitjana els últims 7 dies; la més freda, ${tnmin.toFixed(1)} °C${tnmin<0?' (gelades)':''}.`],
+    [vd>=3?'⚠️':'✅', `<b>Vent:</b> ${vd} ${vd===1?'dia':'dies'} amb ratxes de més de 54 km/h la darrera setmana.`]];
+  const c0=lay.getBounds().getCenter();
+  const d2=document.getElementById('detail');
+  d2.innerHTML=`<div><button class="tag-close" id="close" aria-label="Tanca el detall">Tanca ✕</button>
+    <h2>${comarca(c0.lng,c0.lat)||'Bosc'} · bosc de ${p[3]} ha</h2>
+    <p class="sub">Índex ${Math.max(...p[4])}: probabilitat ${levelTxt(Math.max(...p[4]))}</p></div>
+    <p style="margin:0;font-size:14px"><b>Hàbitat:</b> ${txt}</p>
+    ${flags.length?`<div style="display:flex;flex-direction:column;gap:4px;font-size:13.5px">${flags.map(f=>`<span>${f}</span>`).join('')}</div>`:''}
+    <div style="display:flex;flex-direction:column;gap:8px">${sc.map(([g,v])=>`<div class="sp"><span>${DATA.noms[g]}</span><span class="bar"><i style="width:${v}%"></i></span><span class="n">${v}</span>${SAFE[g]&&v>=20?`<span class="why warn">${SAFE[g]}</span>`:''}</div>`).join('')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${rows.map(r=>`<div class="row"><span aria-hidden="true">${r[0]}</span><span>${r[1]}</span></div>`).join('')}</div>
+    <div class="maplinks"><b>Com arribar-hi:</b> <a href="https://www.google.com/maps/dir/?api=1&destination=${c0.lat.toFixed(5)},${c0.lng.toFixed(5)}&travelmode=driving" target="_blank" rel="noopener">Ruta amb Google Maps</a> · <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${c0.lat.toFixed(5)},${c0.lng.toFixed(5)}&zoom=15&basemap=terrain" target="_blank" rel="noopener">Mapa de terreny</a> · <a href="https://www.google.com/maps/@?api=1&map_action=map&center=${c0.lat.toFixed(5)},${c0.lng.toFixed(5)}&zoom=16&basemap=satellite" target="_blank" rel="noopener">Satèl·lit</a> · <a href="https://www.openstreetmap.org/?mlat=${c0.lat.toFixed(5)}&mlon=${c0.lng.toFixed(5)}#map=15/${c0.lat.toFixed(5)}/${c0.lng.toFixed(5)}" target="_blank" rel="noopener">OpenStreetMap (camins)</a> · <a href="https://opentopomap.org/#map=15/${c0.lat.toFixed(5)}/${c0.lng.toFixed(5)}" target="_blank" rel="noopener">OpenTopoMap (corbes de nivell)</a></div>`;
+  d2.hidden=false; document.getElementById('close').onclick=()=>{d2.hidden=true;};
+  d2.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth', block:'nearest'});
+}
+
+Promise.all([fetch('cells.json').then(r=>r.json()), fetch('comarques.json').then(r=>r.json()), fetch('habitats.json').then(r=>r.json()), fetch('meteo.json').then(r=>r.json())]).then(([d,com,hab,met])=>{
+  DATA=d; COM=com; HAB=hab; MET=met;
+  document.getElementById('date').textContent = `Previsió per a ${fmtDate(d.date)} · dades fins al ${new Date(d.generat+'T12:00').toLocaleDateString('ca-ES',{day:'numeric',month:'long'})}`;
+  map = L.map('map',{zoomControl:true, attributionControl:true, preferCanvas:true}).setView([41.75,1.6],8);
+  map.attributionControl.setPrefix(false).addAttribution('Meteocat · Generalitat · Open-Meteo');
+  const base=L.geoJSON(com,{style:{color:css('--muted'),weight:.8,fill:true,fillColor:css('--bg'),fillOpacity:1}, interactive:false}).addTo(map);
+  map.fitBounds(base.getBounds(),{padding:[12,12]});
+  if(HAB.foc&&HAB.foc.length){fireLayer=L.layerGroup(HAB.foc.map(f=>L.circle([f.lat,f.lon],{radius:f.r,color:'#ff6b1a',weight:2,dashArray:'6 4',fillColor:'#ff6b1a',fillOpacity:.12}).bindPopup(
+    `<b>🔥 ${f.nom}</b><br>${f.data.slice(0,7)} · ~${f.ha.toLocaleString('ca')} ha<br><span style="font-size:12px">${f.nota}<br>Contorn aproximat (cercle de la superfície cremada).<br>Zona de múrgola a la primavera, 1-2 anys després del foc.</span><br><a href="${f.url}" target="_blank" rel="noopener">${f.font}</a>`))).addTo(map);
+  /*FOCCTL*/L.control.layers(null,{'🔥 Zones cremades 2025-2026 (aprox.)':fireLayer},{collapsed:false,position:'topright'}).addTo(map);/*END*/}
+  const g=d.grid;
+  d.cells.forEach(c=>{ const b=[[g.lat0+c.j*g.dlat, g.lon0+c.i*g.dlon],[g.lat0+(c.j+1)*g.dlat, g.lon0+(c.i+1)*g.dlon]];
+    const r=L.rectangle(b,{stroke:false}).addTo(map); r.on('click',()=>{ if(map.getZoom()<ZPOLY) showDetail(c); }); rects.push({r,c}); });
+  L.geoJSON(com,{style:{color:css('--ink'),weight:.6,opacity:.45,fill:false}, interactive:false}).addTo(map);
+  polyLayer=L.layerGroup();
+  map.on('zoomend',zoomMode); map.on('moveend',loadTiles);
+  chips(); draw(); zoomMode();
+}).catch(e=>{ document.getElementById('top').innerHTML='<li>No s\'han pogut carregar les dades del mapa. Torna a carregar la pàgina.</li>'; });
+</script>
+</body>
+</html>
