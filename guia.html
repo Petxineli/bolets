@@ -166,7 +166,7 @@ q.addEventListener('input',apply); apply();
       const md=ii.extmetadata||{}, lic=(md.LicenseShortName||{}).value||''; if(!free.test(lic)) return;
       const clean=h=>{const d=document.createElement('div'); d.innerHTML=h||''; return d.textContent.trim();};
       const img=new Image(); img.alt=b.n+' ('+b.s+')'; img.referrerPolicy='no-referrer';
-      img.onload=()=>{ ph.textContent=''; ph.append(img); const a=document.createElement('a'); a.href=ii.descriptionurl; a.target='_blank'; a.rel='noopener'; a.textContent=(clean((md.Artist||{}).value)||'Autor desconegut')+' · '+lic+' · Wikimedia Commons'; cr.append(a); };
+      img.onload=()=>{ ph.textContent=''; ph.append(img); const a=document.createElement('a'); a.href=ii.descriptionurl; a.target='_blank'; a.rel='noopener'; let au=clean((md.Artist||{}).value)||'Autor desconegut'; if(au.length>45) au=au.replace(/^This image was created by user /i,'').replace(/ at Mushroom Observer.*$/i,' (Mushroom Observer)'); if(au.length>45) au=au.slice(0,42)+'…'; a.textContent=au+' · '+lic+' · Wikimedia Commons'; cr.append(a); };
       img.src=ii.thumburl||ii.url;
     });
   }catch(e){ console.warn("fotos",e); }
