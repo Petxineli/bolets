@@ -269,5 +269,30 @@ Promise.all([fetch('cells.json').then(r=>r.json()), fetch('comarques.json').then
   chips(); draw(); zoomMode();
 }).catch(e=>{ document.getElementById('top').innerHTML='<li>No s\'han pogut carregar les dades del mapa. Torna a carregar la pàgina.</li>'; });
 </script>
+<script>
+/* Botó «Actualitza ara»: posa en marxa el procés de GitHub. La clau es demana una vegada i només es guarda en aquest navegador. */
+(function(){
+  const REPO='Petxineli/bolets', WF='actualitza.yml', KEY='bolets_gh_token';
+  const p=document.getElementById('panel'); if(!p) return;
+  const box=document.createElement('div'); box.style.cssText='margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--line)';
+  box.innerHTML='<button id="updbtn" type="button" style="font:600 13px \'IBM Plex Sans\',sans-serif;padding:8px 12px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer">🔄 Actualitza ara</button> <a href="#" id="updkey" style="font-size:11px;color:var(--muted,#888);margin-left:8px">canvia la clau</a><p id="updmsg" style="font-size:12px;margin:8px 0 0;color:var(--muted,#888)"></p>';
+  p.appendChild(box);
+  const msg=t=>document.getElementById('updmsg').textContent=t;
+  const get=()=>{ try{return localStorage.getItem(KEY)}catch(e){return null} };
+  const set=v=>{ try{ v?localStorage.setItem(KEY,v):localStorage.removeItem(KEY) }catch(e){} };
+  document.getElementById('updkey').onclick=e=>{ e.preventDefault(); set(null); msg('Clau esborrada. Torna a prémer «Actualitza ara» per posar-ne una de nova.'); };
+  document.getElementById('updbtn').onclick=async()=>{
+    let t=get();
+    if(!t){ t=(prompt('Enganxa aquí la clau de GitHub (només cal una vegada, es guarda en aquest navegador):')||'').trim(); if(!t) return; set(t); }
+    msg('Enviant…');
+    try{
+      const r=await fetch('https://api.github.com/repos/'+REPO+'/actions/workflows/'+WF+'/dispatches',{method:'POST',headers:{'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},body:JSON.stringify({ref:'main'})});
+      if(r.status===204) msg('Fet. S\'està actualitzant: en uns 2 minuts recarrega la pàgina i tindràs les dades noves.');
+      else if(r.status===401||r.status===403||r.status===404){ set(null); msg('GitHub no accepta la clau (error '+r.status+'). L\'he esborrada: torna a prémer el botó i en poses una de nova.'); }
+      else msg('No s\'ha pogut: error '+r.status+'.');
+    }catch(e){ msg('No hi ha connexió amb GitHub.'); }
+  };
+})();
+</script>
 </body>
 </html>
