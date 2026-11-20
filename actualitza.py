@@ -11,7 +11,7 @@ with open('data/boscos-catalunya.json', 'wb') as out:
     for p in sorted(glob.glob('boscos-*.txt')):
         out.write(open(p, 'rb').read())
 for src, dst in (('cells.txt', 'data/cells.txt'), ('estacions.json', 'data/estacions.json'),
-                 ('index.html', 'site/index.html'), ('comarques.json', 'site/comarques.json'),
+                 ('index.html', 'site/index.html'), ('guia.html', 'site/guia.html'), ('comarques.json', 'site/comarques.json'),
                  ('leaflet.js', 'site/lib/leaflet.js'), ('leaflet.css', 'site/lib/leaflet.css')):
     shutil.copy(src, dst)
 
